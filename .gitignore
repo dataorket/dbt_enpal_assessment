@@ -1,0 +1,17 @@
+# dbt
+target/
+dbt_packages/
+logs/
+
+# Python
+venv/
+*.pyc
+__pycache__/
+
+# OS
+.DS_Store
+.user.yml
+
+# IDEs
+.vscode/
+.idea/
