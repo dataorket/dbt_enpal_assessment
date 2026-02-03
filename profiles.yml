@@ -2,7 +2,7 @@ enpal_assessment_project:
   outputs:
     dev:
       dbname: postgres
-      host: localhost
+      host: 127.0.0.1
       pass: admin
       port: 5432
       schema: public
