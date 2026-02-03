@@ -1,12 +1,20 @@
 enpal_assessment_project:
   outputs:
     dev:
-      dbname: postgres
-      host: 127.0.0.1
-      pass: admin
-      port: 5432
-      schema: public
-      threads: 1
       type: postgres
+      host: 127.0.0.1
+      port: 5432
       user: admin
+      password: admin
+      dbname: postgres
+      schema: public_pipedrive_analytics
+      
+    prod:
+      type: postgres
+      host: 127.0.0.1
+      port: 5432
+      user: admin
+      password: admin
+      dbname: postgres
+      schema: prod_pipedrive_analytics
   target: dev
