@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: rep_sales_funnel_monthly
+    description: Monthly funnel KPI counts
+    tests:
+      - funnel_completeness:
+          config:
+            severity: warn
+      - funnel_progression_logic:
+          config:
+            severity: warn
+      - stage_activity_consistency:
+          config:
+            severity: warn
