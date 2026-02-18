@@ -1,40 +1,36 @@
--- marts/rep_sales_funnel_monthly_with_lost_reason_label.sql
--- Monthly sales funnel report with lost reason label (parsed from stg_fields.options)
+
+{{ config(materialized='table') }}
 
 with base as (
     select * from {{ ref('rep_sales_funnel_monthly') }}
 ),
-deal_changes as (
-    select * from {{ ref('stg_deal_changes') }}
-),
-fields as (
-    select * from {{ ref('stg_fields') }}
-),
--- Join deal_changes to fields to get the options JSON
-joined as (
+-- Aggregate lost reasons by month, kpi_name, funnel_step
+lost_reasons as (
     select
-        dc.deal_id,
-        dc.field_key,
-        dc.new_value as option_id,
-        f.options
-    from deal_changes dc
-    left join fields f
-        on dc.field_key = f.field_id
+        date_trunc('month', dc.change_timestamp)::date as month,
+        fct.kpi_name,
+        fct.funnel_step,
+        option_obj.value->>'label' as lost_reason_label,
+        count(distinct dc.deal_id) as deals_with_reason
+    from {{ ref('stg_deal_changes') }} dc
+    join {{ ref('stg_fields') }} f
+        on dc.field_key = 'lost_reason' and f.field_id = 23
+    cross join lateral jsonb_array_elements(f.options) as option_obj(value)
+    join {{ ref('fct_deal_stage_history') }} fct
+        on dc.deal_id = fct.deal_id
+        and date_trunc('month', dc.change_timestamp)::date = date_trunc('month', fct.change_time)::date
+    where dc.new_value = option_obj.value->>'id'
+    group by 1,2,3,4
 ),
--- Parse the JSON to extract the label for the option_id
-exploded as (
+final as (
     select
-        j.deal_id,
-        j.field_key,
-        j.option_id,
-        option_obj.value:label::string as lost_reason_label
-    from joined j,
-    lateral flatten(input => j.options) as option_obj
-    where option_obj.value:id::string = j.option_id
+        b.*,
+        lr.lost_reason_label,
+        lr.deals_with_reason
+    from base b
+    left join lost_reasons lr
+        on b.month = lr.month
+        and b.kpi_name = lr.kpi_name
+        and b.funnel_step = lr.funnel_step
 )
-select
-    b.*,
-    e.lost_reason_label
-from base b
-left join exploded e
-    on b.deal_id = e.deal_id
+select * from final

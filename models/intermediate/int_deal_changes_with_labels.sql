@@ -14,4 +14,4 @@ select
     f.options as option_labels
 from deal_changes dc
 left join fields f
-    on dc.field_key = f.field_id
+    on dc.field_key = f.field_id::varchar

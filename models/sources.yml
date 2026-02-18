@@ -1,18 +1,27 @@
 version: 2
-      
+
 sources:
   - name: postgres_public
     database: postgres
     schema: public
     tables:
       - name: activity
-      
       - name: activity_types
-      
       - name: deal_changes
-      
       - name: stages
-      
       - name: fields
-      
       - name: users
+
+  - name: raw_data
+    tables:
+      - name: fields
+        description: "Fields and option labels for enrichment"
+        columns:
+          - name: id
+            description: "Field ID"
+          - name: field_key
+            description: "Field key"
+          - name: name
+            description: "Field name"
+          - name: options
+            description: "JSON array of option labels"

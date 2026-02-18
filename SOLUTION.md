@@ -1,5 +1,73 @@
 # Sales Funnel Analysis - Solution Documentation
 
+## Lost Reason Enrichment Logic & Demo
+
+### How Lost Reason Enrichment Works
+
+The model `rep_sales_funnel_monthly_with_lost_reason_label` enriches the monthly sales funnel report with human-readable lost reason labels. It does this by:
+
+- Looking for changes in `stg_deal_changes` where `field_key = 'lost_reason'` (i.e., a deal was marked as lost for a specific reason).
+- Joining to `stg_fields` where `field_id = 23` (the "Lost reason" field) to extract the label from the JSON options.
+- Aggregating the number of deals lost for each reason per (month, kpi_name, funnel_step) group.
+
+### Example Test Row
+
+If your raw data includes a row like this in `deal_changes.csv`:
+
+```
+deal_id,change_time,changed_field_key,new_value
+123456,2024-05-10 10:00:00,lost_reason,2
+```
+
+The enrichment will match `new_value = 2` to the label "Pricing Issues" from the lost reason options in `stg_fields`.
+
+### Example Query
+
+To see the enriched lost reasons in your report:
+
+```sql
+SELECT *
+FROM public_pipedrive_analytics.rep_sales_funnel_monthly_with_lost_reason_label
+WHERE lost_reason_label IS NOT NULL
+ORDER BY month, funnel_step, lost_reason_label;
+```
+
+### Example Output
+
+| month      | kpi_name                        | funnel_step | deals_count | lost_reason_label     | deals_with_reason |
+|------------|----------------------------------|-------------|-------------|----------------------|-------------------|
+| 2024-02-01 | Step 2: Qualified Lead           | 2           | 74          | Product Mismatch     | 1                 |
+| 2024-02-01 | Step 2: Qualified Lead           | 2           | 74          | Duplicate Entry      | 2                 |
+| ...        | ...                              | ...         | ...         | ...                  | ...               |
+
+### Total Lost Deals Per Step
+
+To see the total number of lost deals per funnel step:
+
+```sql
+SELECT
+  funnel_step,
+  SUM(deals_with_reason) AS total_lost_deals
+FROM public_pipedrive_analytics.rep_sales_funnel_monthly_with_lost_reason_label
+GROUP BY funnel_step
+ORDER BY funnel_step;
+```
+
+#### Example Output
+
+| funnel_step | total_lost_deals |
+|-------------|------------------|
+| 1           | 38               |
+| 2           | 58               |
+| 3           | 101              |
+| 4           | 147              |
+| 5           | 203              |
+| 6           | 230              |
+| 7           | 202              |
+| 8           | 205              |
+| 9           | 166              |
+
+This demonstrates the business value of the enrichment and how to interpret the results in your sales funnel analysis.
 ## Solution Overview
 
 This project implements a complete **3-layer dbt pipeline** for Pipedrive CRM sales funnel analysis with dual environment support (DEV and PROD).
