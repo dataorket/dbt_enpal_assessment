@@ -1,7 +1,26 @@
+dbt_packages/
+
 # dbt
 target/
 dbt_packages/
 logs/
+
+# Python virtual environments
+.venv/
+venv/
+
+# Backup and temp files
+*.backup
+*.tmp
+
+# System files
+.DS_Store
+
+# Raw data (uncomment if you do NOT want to push sample data)
+# raw_data/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
 
 # Python
 venv/

@@ -17,29 +17,36 @@ flowchart TD
     end
     
     subgraph Staging["🔧 Staging Layer (5 views)"]
-        SA[stg_activity]
-        SAT[stg_activity_types]
-        SDC[stg_deal_changes]
-        SS[stg_stages]
-        SU[stg_users]
+  SA[stg_activity]
+  SAT[stg_activity_types]
+  SDC[stg_deal_changes]
+  SS[stg_stages]
+  SU[stg_users]
+  SF[stg_fields]
     end
     
     subgraph Intermediate["⚙️ Intermediate Layer (2 tables)"]
-        ICA[int_completed_activities]
-        IDH[int_deal_stage_history]
+  ICA[int_completed_activities]
+  IDH[int_deal_stage_history]
+  ICL[int_deal_changes_with_labels]
     end
     
-    subgraph Marts["📊 Marts Layer (5 tables)"]
-        DU[dim_users]
-        DS[dim_stages]
-        FA[fct_activities]
-        FD[fct_deal_stage_history]
-        REP[rep_sales_funnel_monthly]
+  subgraph Marts["📊 Marts Layer (7 tables)"]
+    DU[dim_users]
+    DS[dim_stages]
+    FA[fct_activities]
+    FD[fct_deal_stage_history]
+    REP[rep_sales_funnel_monthly]
+    REPL[rep_sales_funnel_monthly_with_labels]
+    REPLR[rep_sales_funnel_monthly_with_lost_reason_label]
     end
     
     A --> SA
-    AT --> SAT
-    DC --> SDC
+  AT --> SAT
+  F[fields] --> SF
+  DC --> SDC
+  SDC --> ICL
+  SF --> ICL
     S --> SS
     U --> SU
     
@@ -73,51 +80,61 @@ flowchart TD
 
 ```
 Source Data (public schema)
-    ↓
-Staging Layer (5 views) → Data cleaning & standardization
-    ↓
+  ↓
+Staging Layer (6 views) → Data cleaning & standardization
+  ↓
 Intermediate Layer (2 tables) → Business logic transformations
-    ↓
+  ↓
 Marts Layer (5 tables) → Dimensions, facts, and reports
 ```
 
 ### Models Summary
 
-**Total: 12 models**
 
-- **Staging** (5 view models):
+
+**Total: 16 models**
+
+- **Staging** (6 view models):
   - `stg_activity` - Cleaned activity data
   - `stg_activity_types` - Activity type lookup
   - `stg_deal_changes` - Deal stage change tracking
   - `stg_stages` - Sales stage definitions
   - `stg_users` - User information
+  - `stg_fields` - Field/option label lookup
 
-- **Intermediate** (2 table models):
+- **Intermediate** (3 table models):
   - `int_completed_activities` - Filtered completed activities with types
   - `int_deal_stage_history` - First stage entry per deal (window functions)
+  - `int_deal_changes_with_labels` - Enriches deal_changes with option labels from stg_fields
 
-- **Marts (5 table models):
+- **Marts (7 table models):
   - dim_users - User dimension (1787 records)
   - dim_stages - Stage/KPI mapping dimension (9 records)
   - fct_activities - Completed activity facts (1128 records)
   - fct_deal_stage_history - Deal stage progression facts (8922 records)
   - rep_sales_funnel_monthly - Monthly sales funnel report (128 rows)
+  - rep_sales_funnel_monthly_with_labels - Monthly sales funnel report with option labels (enriched)
+  - rep_sales_funnel_monthly_with_lost_reason_label - Monthly sales funnel report with parsed lost reason label
 ### Data Model Entity Relationship Diagram
 
 ```mermaid
 erDiagram
-    activity ||--o{ stg_activity : "sources"
-    activity_types ||--o{ stg_activity_types : "sources"
-    deal_changes ||--o{ stg_deal_changes : "sources"
-    stages ||--o{ stg_stages : "sources"
-    users ||--o{ stg_users : "sources"
+  activity ||--o{ stg_activity : "sources"
+  activity_types ||--o{ stg_activity_types : "sources"
+  deal_changes ||--o{ stg_deal_changes : "sources"
+  stages ||--o{ stg_stages : "sources"
+  users ||--o{ stg_users : "sources"
+  fields ||--o{ stg_fields : "sources"
     
-    stg_activity ||--o{ int_completed_activities : "filters"
-    stg_activity_types ||--o{ int_completed_activities : "enriches"
-    stg_deal_changes ||--o{ int_completed_activities : "joins"
+  stg_activity ||--o{ int_completed_activities : "filters"
+  stg_activity_types ||--o{ int_completed_activities : "enriches"
+  stg_deal_changes ||--o{ int_completed_activities : "joins"
     
-    stg_deal_changes ||--o{ int_deal_stage_history : "transforms"
-    stg_stages ||--o{ int_deal_stage_history : "enriches"
+  stg_deal_changes ||--o{ int_deal_stage_history : "transforms"
+  stg_stages ||--o{ int_deal_stage_history : "enriches"
+  stg_fields ||--o{ int_deal_stage_history : "option labels"
+  stg_deal_changes ||--o{ int_deal_changes_with_labels : "enriches"
+  stg_fields ||--o{ int_deal_changes_with_labels : "option labels"
     
     stg_users ||--o{ dim_users : "builds"
     stg_stages ||--o{ dim_stages : "builds"
