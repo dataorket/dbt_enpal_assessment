@@ -1,32 +1,18 @@
 
-## Standardized Test Error Messages with Macros
 
-### Macro: `test_failure_message`
 
-#### Purpose
-This macro is used in custom dbt tests to generate standardized, informative error messages when a test fails. It ensures all test failures are easy to interpret and debug, especially in larger projects with many tests.
-
-#### How It Is Used
-In a custom test SQL file (e.g., `test_funnel_completeness.sql`), instead of writing a plain error message, you use the macro like this:
-
-```sql
-select
-  {{ test_failure_message('test_funnel_completeness', 'Missing early funnel step') }} as error_message,
-  month,
-  funnel_step
-from ...
-```
-
-This outputs a clear, consistent error message for each failing row, including the test name and a custom description.
-
-#### Benefits
-- **Consistency:** All test failures follow the same message format, making them easier to scan and understand.
-- **Debuggability:** The error message includes the test name and a custom description, so you immediately know which test failed and why.
-- **Scalability:** As your project grows, standardized messages make it much easier to manage and triage test failures.
-- **Automation:** Standardized output is easier to parse for automated monitoring or alerting systems.
-
-This approach improves the maintainability and professionalism of your dbt project, and is especially valuable in collaborative or production environments.
 # Sales Funnel Analysis - Solution Documentation
+
+## dbt Model Materialization Strategy
+
+- **Staging models** are materialized as views. These models clean and standardize raw data, are lightweight, and always reflect the latest source data.
+- **Intermediate (int) models** and **marts** are materialized as tables. These layers involve heavier transformations, aggregations, or business logic, and materializing as tables improves performance for downstream queries and reporting.
+
+This approach keeps the pipeline efficient and reporting models fast and reliable.
+
+# Solution Overview
+
+This project implements a complete **3-layer dbt pipeline** for Pipedrive CRM sales funnel analysis with dual environment support (DEV and PROD).
 
 ## dbt Model Materialization Strategy
 
@@ -628,7 +614,36 @@ SELECT 'PROD' as env, COUNT(*) FROM prod_pipedrive_analytics.rep_sales_funnel_mo
 
 ---
 
+
 ## Data Quality Tests
+
+## Standardized Test Error Messages with Macros
+
+### Macro: `test_failure_message`
+
+#### Purpose
+This macro is used in custom dbt tests to generate standardized, informative error messages when a test fails. It ensures all test failures are easy to interpret and debug, especially in larger projects with many tests.
+
+#### How It Is Used
+In a custom test SQL file (e.g., `test_funnel_completeness.sql`), instead of writing a plain error message, you use the macro like this:
+
+```sql
+select
+  {{ test_failure_message('test_funnel_completeness', 'Missing early funnel step') }} as error_message,
+  month,
+  funnel_step
+from ...
+```
+
+This outputs a clear, consistent error message for each failing row, including the test name and a custom description.
+
+#### Benefits
+- **Consistency:** All test failures follow the same message format, making them easier to scan and understand.
+- **Debuggability:** The error message includes the test name and a custom description, so you immediately know which test failed and why.
+- **Scalability:** As your project grows, standardized messages make it much easier to manage and triage test failures.
+- **Automation:** Standardized output is easier to parse for automated monitoring or alerting systems.
+
+This approach improves the maintainability and professionalism of your dbt project, and is especially valuable in collaborative or production environments.
 
 This project includes **12 automated data quality tests** for comprehensive validation:
 
