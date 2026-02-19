@@ -1,3 +1,31 @@
+
+## Standardized Test Error Messages with Macros
+
+### Macro: `test_failure_message`
+
+#### Purpose
+This macro is used in custom dbt tests to generate standardized, informative error messages when a test fails. It ensures all test failures are easy to interpret and debug, especially in larger projects with many tests.
+
+#### How It Is Used
+In a custom test SQL file (e.g., `test_funnel_completeness.sql`), instead of writing a plain error message, you use the macro like this:
+
+```sql
+select
+  {{ test_failure_message('test_funnel_completeness', 'Missing early funnel step') }} as error_message,
+  month,
+  funnel_step
+from ...
+```
+
+This outputs a clear, consistent error message for each failing row, including the test name and a custom description.
+
+#### Benefits
+- **Consistency:** All test failures follow the same message format, making them easier to scan and understand.
+- **Debuggability:** The error message includes the test name and a custom description, so you immediately know which test failed and why.
+- **Scalability:** As your project grows, standardized messages make it much easier to manage and triage test failures.
+- **Automation:** Standardized output is easier to parse for automated monitoring or alerting systems.
+
+This approach improves the maintainability and professionalism of your dbt project, and is especially valuable in collaborative or production environments.
 # Sales Funnel Analysis - Solution Documentation
 
 ## dbt Model Materialization Strategy
@@ -94,9 +122,37 @@ WHERE deal_id = 999999;
 
 > Replace `Step X: ...` and `funnel_step` with the actual values for your funnel. This row will appear in the reporting table with the correct lost reason label, demonstrating the enrichment logic is working as intended.
 
----
+
+
 
 ## Sample Output: rep_sales_funnel_monthly_with_lost_reason_label
+
+### Purpose
+Ensures that every expected funnel step (1.0, 2.0, 2.1, 3.0, 3.1, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0) is present for every month in the `rep_sales_funnel_monthly` reporting model. This test helps catch data gaps or pipeline issues that would cause missing steps in the sales funnel analysis.
+
+### How it Works
+- The test cross-joins all months in the reporting table with all expected funnel steps.
+- It checks for any (month, funnel_step) combinations that are missing from the actual data.
+- If a step is missing for a month, the test fails and outputs a standardized error message.
+
+### Example Failure & Interpretation
+
+If you see a test failure like:
+
+```
+test_funnel_completeness failed: Missing early funnel step | 2024-12-01 | 1.0
+```
+
+This means:
+- For December 2024, the first funnel step (1.0, "Lead Generation") is missing from the reporting output.
+- No deals were recorded as entering the "Lead Generation" stage in that month, or the data/model logic did not capture them.
+
+#### How to Investigate
+1. Check the raw data (`deal_changes.csv`) for any deals with `stage_id = 1` and `change_time` in December 2024.
+2. Trace these records through the staging, intermediate, and reporting models to see where they might be dropped or missed.
+3. Confirm that the mapping from `stage_id` to funnel step is correct in the dimension and reporting models.
+
+This test is critical for ensuring the completeness and reliability of your sales funnel reporting.
 
 Below is a sample of the actual output from the reporting table `dev_pipedrive_analytics.rep_sales_funnel_monthly_with_lost_reason_label`:
 
