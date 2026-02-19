@@ -26,9 +26,9 @@ renamed as (
         deal_id,
 
         case 
-            when lower(done) = 'true' then true
-            when lower(done) = 'false' then false
-            else null
+              when done = true then true
+              when done = false then false
+              else null
         end as is_completed,
 
         cast(due_to as timestamp) as due_timestamp
