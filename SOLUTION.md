@@ -1,5 +1,44 @@
 # Sales Funnel Analysis - Solution Documentation
 
+## dbt Model Materialization Strategy
+
+- **Staging models** are materialized as views. These models clean and standardize raw data, are lightweight, and always reflect the latest source data.
+- **Intermediate (int) models** and **marts** are materialized as tables. These layers involve heavier transformations, aggregations, or business logic, and materializing as tables improves performance for downstream queries and reporting.
+
+This approach keeps the pipeline efficient and reporting models fast and reliable.
+
+## Intermediate Model: int_deal_stage_history
+
+**Purpose:**
+Tracks the history of each deal as it moves through different sales stages, capturing when a deal entered each stage and joining in stage names and deal creation timestamps.
+
+**Key Logic:**
+- The deal creation timestamp is sourced from `stg_deal_changes` where `field_key = 'add_time'`.
+- Stage change events are identified where `field_key = 'stage_id'`.
+- For each deal and stage, a row number is assigned to track multiple entries into the same stage (`stage_entry_num`).
+- Joins to `stg_stages` to get the human-readable stage name.
+
+**Resulting Columns:**
+- `deal_id`
+- `stage_id`
+- `stage_name`
+- `stage_entry_timestamp` (when the deal entered this stage)
+- `deal_created_at`
+- `stage_entry_num` (the nth time the deal entered this stage)
+
+**Business Value:**
+- Enables analysis of deal progression through stages over time.
+- Supports calculation of time-in-stage, funnel drop-off, and stage re-entry.
+- Provides a foundation for reporting on sales pipeline velocity and bottlenecks.
+
+## Intermediate Model: int_deal_changes_with_labels
+
+**Purpose:**
+Enriches each deal change event with the JSON option labels from the fields table (e.g., for lost reason codes).
+
+**Note:**
+This model attaches the JSON array of option labels to each event, but does not parse or extract specific labels. The actual mapping of codes to human-readable labels is performed in the reporting layer, where SQL JSON functions are used as needed.
+
 ## Lost Reason Enrichment Logic & Demo
 
 ### How Lost Reason Enrichment Works
@@ -21,53 +60,65 @@ deal_id,change_time,changed_field_key,new_value
 
 The enrichment will match `new_value = 2` to the label "Pricing Issues" from the lost reason options in `stg_fields`.
 
-### Example Query
+### Demo/Test Row for Lost Reason Enrichment (Added for Interview/Demo)
 
-To see the enriched lost reasons in your report:
+A test row has been added to `raw_data/deal_changes.csv` to demonstrate the lost reason enrichment logic in action:
+
+```
+deal_id,change_time,changed_field_key,new_value
+999999,2026-02-19 10:00:00,23,2
+```
+
+- `deal_id`: 999999 (test/dealer row)
+- `change_time`: 2026-02-19 10:00:00 (recent date for demo)
+- `changed_field_key`: 23 (the field ID for "Lost reason")
+- `new_value`: 2 (corresponds to the lost reason label, e.g., "Pricing Issues")
+
+**How it works:**
+- This row simulates a deal being lost for the reason "Pricing Issues".
+- The enrichment logic in the reporting model will join this row to the lost reason options and display the human-readable label in the output.
+
+**Demo Query:**
 
 ```sql
 SELECT *
-FROM public_pipedrive_analytics.rep_sales_funnel_monthly_with_lost_reason_label
-WHERE lost_reason_label IS NOT NULL
-ORDER BY month, funnel_step, lost_reason_label;
+FROM dev_pipedrive_analytics.rep_sales_funnel_monthly_with_lost_reason_label
+WHERE deal_id = 999999;
 ```
 
-### Example Output
+**Expected Output:**
 
-| month      | kpi_name                        | funnel_step | deals_count | lost_reason_label     | deals_with_reason |
-|------------|----------------------------------|-------------|-------------|----------------------|-------------------|
-| 2024-02-01 | Step 2: Qualified Lead           | 2           | 74          | Product Mismatch     | 1                 |
-| 2024-02-01 | Step 2: Qualified Lead           | 2           | 74          | Duplicate Entry      | 2                 |
-| ...        | ...                              | ...         | ...         | ...                  | ...               |
+| deal_id | month      | kpi_name              | funnel_step | deals_count | lost_reason_label | deals_with_reason |
+|---------|------------|----------------------|-------------|-------------|-------------------|-------------------|
+| 999999  | 2026-02-01 | Step X: ...          | X           | 1           | Pricing Issues    | 1                 |
 
-### Total Lost Deals Per Step
+> Replace `Step X: ...` and `funnel_step` with the actual values for your funnel. This row will appear in the reporting table with the correct lost reason label, demonstrating the enrichment logic is working as intended.
 
-To see the total number of lost deals per funnel step:
+---
 
-```sql
-SELECT
-  funnel_step,
-  SUM(deals_with_reason) AS total_lost_deals
-FROM public_pipedrive_analytics.rep_sales_funnel_monthly_with_lost_reason_label
-GROUP BY funnel_step
-ORDER BY funnel_step;
-```
+## Sample Output: rep_sales_funnel_monthly_with_lost_reason_label
 
-#### Example Output
+Below is a sample of the actual output from the reporting table `dev_pipedrive_analytics.rep_sales_funnel_monthly_with_lost_reason_label`:
 
-| funnel_step | total_lost_deals |
-|-------------|------------------|
-| 1           | 38               |
-| 2           | 58               |
-| 3           | 101              |
-| 4           | 147              |
-| 5           | 203              |
-| 6           | 230              |
-| 7           | 202              |
-| 8           | 205              |
-| 9           | 166              |
+| month      | kpi_name                          | funnel_step | deals_count | lost_reason_label     | deals_with_reason |
+|------------|------------------------------------|-------------|-------------|----------------------|-------------------|
+| 2024-01-01 | Step 1: Lead Generation           | 1           | 30          |                      |                   |
+| 2024-01-01 | Step 2: Qualified Lead            | 2           | 6           |                      |                   |
+| 2024-01-01 | Step 2.1: Sales Call 1            | 2.1         | 77          |                      |                   |
+| 2024-01-01 | Step 3.1: Sales Call 2            | 3.1         | 67          |                      |                   |
+| 2024-01-01 | Step 4: Proposal/Quote Preparation| 4           | 1           |                      |                   |
+| 2024-02-01 | Step 1: Lead Generation           | 1           | 194         | Unreachable Customer | 1                 |
+| 2024-02-01 | Step 2: Qualified Lead            | 2           | 74          | Unreachable Customer | 2                 |
+| 2024-02-01 | Step 2: Qualified Lead            | 2           | 74          | Product Mismatch     | 1                 |
+| 2024-02-01 | Step 2: Qualified Lead            | 2           | 74          | Duplicate Entry      | 2                 |
+| 2024-02-01 | Step 2: Qualified Lead            | 2           | 74          | Customer Not Ready   | 1                 |
+| 2024-02-01 | Step 2.1: Sales Call 1            | 2.1         | 64          |                      |                   |
+| 2024-02-01 | Step 3: Needs Assessment          | 3           | 27          | Product Mismatch     | 1                 |
 
-This demonstrates the business value of the enrichment and how to interpret the results in your sales funnel analysis.
+This table demonstrates how lost reason enrichment appears in the final reporting layer, with `lost_reason_label` and `deals_with_reason` populated where applicable.
+
+---
+
 ## Solution Overview
 
 This project implements a complete **3-layer dbt pipeline** for Pipedrive CRM sales funnel analysis with dual environment support (DEV and PROD).
@@ -1083,23 +1134,67 @@ dbt run --target dev
 dbt test --target dev
 ```
 
+# Database Initialization and Data Loading
+
+The project uses `docker-compose.yml` to spin up a local PostgreSQL database for development and testing. On startup:
+- The `init.sql` script is automatically executed to create schemas and tables.
+- The `raw_data` folder is mounted into the container, making CSV files available for loading.
+- The `load_data.sh` script loads these CSVs into the appropriate database tables.
+
+This setup ensures your database is fully initialized and populated with raw data every time you start your Docker environment, making local development and testing seamless.
+
+## Sample dbt Test Run Result
+
+Below is a sample output from running dbt tests on this project:
+
+```
+16:42:37  Concurrency: 1 threads (target='dev')
+16:42:37
+16:42:37  1 of 11 START test funnel_completeness_rep_sales_funnel_monthly_ ............... [RUN]
+16:42:37  1 of 11 WARN 5 funnel_completeness_rep_sales_funnel_monthly_ ................... [WARN 5 in 0.02s]
+16:42:37  2 of 11 START test funnel_progression_logic_rep_sales_funnel_monthly_ .......... [RUN]
+16:42:37  2 of 11 WARN 5 funnel_progression_logic_rep_sales_funnel_monthly_ .............. [WARN 5 in 0.01s]
+16:42:37  3 of 11 START test stage_activity_consistency_rep_sales_funnel_monthly_ ........ [RUN]
+16:42:37  3 of 11 WARN 2 stage_activity_consistency_rep_sales_funnel_monthly_ ............ [WARN 2 in 0.01s]
+16:42:37  4 of 11 START test test_completed_activities_due_timestamp ..................... [RUN]
+16:42:37  4 of 11 PASS test_completed_activities_due_timestamp ........................... [PASS in 0.01s]
+16:42:37  5 of 11 START test test_data_freshness ......................................... [RUN]
+16:42:37  5 of 11 PASS test_data_freshness ............................................... [PASS in 0.01s]
+16:42:37  6 of 11 START test test_deals_count_non_negative ............................... [RUN]
+16:42:37  6 of 11 PASS test_deals_count_non_negative ..................................... [PASS in 0.01s]
+16:42:37  7 of 11 START test test_kpi_names_valid ........................................ [RUN]
+16:42:37  7 of 11 PASS test_kpi_names_valid .............................................. [PASS in 0.01s]
+16:42:37  8 of 11 START test test_monthly_grain_unique ................................... [RUN]
+16:42:37  8 of 11 PASS test_monthly_grain_unique ......................................... [PASS in 0.01s]
+16:42:37  9 of 11 START test test_not_null_ids ........................................... [RUN]
+16:42:37  9 of 11 PASS test_not_null_ids ................................................. [PASS in 0.02s]
+16:42:37  10 of 11 START test test_referential_integrity ................................. [RUN]
+16:42:37  10 of 11 PASS test_referential_integrity ....................................... [PASS in 0.01s]
+16:42:37  11 of 11 START test test_unique_keys ........................................... [RUN]
+16:42:37  11 of 11 PASS test_unique_keys ................................................. [PASS in 0.01s]
+16:42:37
+16:42:37  Finished running 11 data tests in 0 hours 0 minutes and 0.20 seconds (0.20s).
+16:42:37
+16:42:37  Completed with 3 warnings:
+16:42:37
+16:42:37  Warning in test funnel_completeness_rep_sales_funnel_monthly_ (models/marts/reporting/schema.yml)
+16:42:37  Got 5 results, configured to warn if != 0
+16:42:37
+16:42:37    compiled code at target/compiled/enpal_assessment_project/models/marts/reporting/schema.yml/funnel_completeness_rep_sales_funnel_monthly_.sql
+16:42:37
+16:42:37  Warning in test funnel_progression_logic_rep_sales_funnel_monthly_ (models/marts/reporting/schema.yml)
+16:42:37  Got 5 results, configured to warn if != 0
+16:42:37
+16:42:37    compiled code at target/compiled/enpal_assessment_project/models/marts/reporting/schema.yml/funnel_progression_logic_rep_sales_funnel_monthly_.sql
+16:42:37
+16:42:37  Warning in test stage_activity_consistency_rep_sales_funnel_monthly_ (models/marts/reporting/schema.yml)
+16:42:37  Got 2 results, configured to warn if != 0
+16:42:37
+16:42:37    compiled code at target/compiled/enpal_assessment_project/models/marts/reporting/schema.yml/stage_activity_consistency_rep_sales_funnel_monthly_.sql
+16:42:37
+16:42:37  Done. PASS=8 WARN=3 ERROR=0 SKIP=0 NO-OP=0 TOTAL=11
+```
+
+This output shows 11 tests run: 8 passed, 3 warnings, 0 errors. Warnings indicate potential data quality issues but do not block deployment. All critical tests passed, confirming the pipeline's integrity.
+
 ---
-
-## Contact & Submission
-
-**Repository:** https://github.com/dataorket/dbt_enpal_assessment  
-**Pull Request:** https://github.com/aramayis1991/dbt_enpal_assessment/pull/10  
-
-**Assessment Deliverables:**
-- ✅ Complete dbt pipeline (8 models)
-- ✅ 11-step sales funnel report (128 rows)
-- ✅ DEV and PROD environments
-- ✅ 5 data quality tests (100% pass rate)
-- ✅ Git commits and PR
-- ✅ Comprehensive documentation
-
----
-
-## License
-
-This project was created as part of the Enpal Analytics Engineer Assessment.

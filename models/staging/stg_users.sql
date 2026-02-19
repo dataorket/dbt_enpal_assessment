@@ -5,7 +5,12 @@
 }}
 
 with source as (
-    select * from {{ source('postgres_public', 'users') }}
+    select
+        id,
+        name,
+        email,
+        modified
+    from {{ source('postgres_public', 'users') }}
 ),
 
 renamed as (

@@ -1,10 +1,14 @@
-
 {{ config(materialized='view') }}
 
 
 
 with source as (
-    select * from {{ source('postgres_public', 'fields') }}
+    select
+        id,
+        name,
+        field_key,
+        field_value_options
+    from {{ source('postgres_public', 'fields') }}
 )
 
 select

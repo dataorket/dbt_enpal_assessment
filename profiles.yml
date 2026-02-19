@@ -7,7 +7,7 @@ enpal_assessment_project:
       user: admin
       password: admin
       dbname: postgres
-      schema: public_pipedrive_analytics
+      schema: dev_pipedrive_analytics
       
     prod:
       type: postgres

@@ -5,7 +5,12 @@
 }}
 
 with source as (
-    select * from {{ source('postgres_public', 'activity_types') }}
+    select
+        id,
+        name,
+        active,
+        type
+    from {{ source('postgres_public', 'activity_types') }}
 ),
 
 renamed as (
@@ -13,8 +18,8 @@ renamed as (
         id as activity_type_id,
         name as activity_type_name,
         case 
-            when active = 'Yes' then true
-            when active = 'No' then false
+            when lower(active) = 'yes' then true
+            when lower(active) = 'no' then false
             else null
         end as is_active,
         type as activity_type_key
