@@ -1,0 +1,7 @@
+version: 2
+
+models:
+  - name: dim_stages
+    description: Dimension table for sales funnel stages
+  - name: dim_users
+    description: Dimension table for users

@@ -1,0 +1,7 @@
+version: 2
+
+models:
+  - name: fct_activities
+    description: Fact table for completed activities
+  - name: fct_deal_stage_history
+    description: Fact table for deal stage history
